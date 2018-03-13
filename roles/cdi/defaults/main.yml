@@ -1,0 +1,12 @@
+cdi_namespace: "{{ cdi_image_namespace | default('golden-images') }}"
+cdi_endpoint: "{{ cdi_endpoint_url | default(omit) }}"
+cdi_pvc: "{{ cdi_pvc_name | default('golden-pvc') }}"
+cdi_size: "{{ cdi_pvc_size | default('10Gi') }}"
+cdi_secret: "{{ cdi_secret_name | default('cdi-secret') }}"
+cdi_secret_key_id: "{{ cdi_base64encoded_secret_user | default('') }}"
+cdi_secret_key: "{{ cdi_base64encoded_secret_passwd | default('') }}"
+cdi_secret_annotation: "kubevirt.io/storage.import.secretName:"
+cdi_deploy: "{{ action_deploy_cdi | default('Y') }}"
+cdi_import: "{{ action_import_cdi_image | default('N') }}"
+cdi_template_dir: "{{ role_path }}/templates"
+

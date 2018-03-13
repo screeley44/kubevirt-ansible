@@ -1,0 +1,78 @@
+---
+# General State of World Checks
+- name: Determine Environment
+  shell: "oc version> /dev/null 2>&1; if [ \"$?\" -eq 127 ]; then echo 'kubectl'; else echo 'oc'; fi"
+  register: cli
+
+- name: Check if CDI is already running
+  shell: "kubectl get deployment cdi-deployment -o jsonpath='{.status.availableReplicas}' -n {{ cdi_namespace }}"
+  register: cdi_running
+  ignore_errors: yes
+
+# General CDI Deployment
+- name: Check if namespace {{ cdi_namespace }} exists
+  shell: kubectl get ns | grep -w {{ cdi_namespace }} | awk '{ print $1 }'
+  register: ns
+
+- name: Create {{ cdi_namespace }} namespace
+  shell: kubectl create namespace {{ cdi_namespace }}
+  when: ns.stdout != cdi_namespace
+        and cdi_deploy == "Y"
+        and cdi_running.stdout != "1"
+
+- name: Create CDI deployment
+  command: "kubectl create -f https://raw.githubusercontent.com/kubevirt/containerized-data-importer/master/manifests/cdi-controller-deployment.yaml -n {{ cdi_namespace }}"
+  when: cdi_deploy == "Y"
+        and cdi_running.stdout != "1"
+
+# Download and Import Functionality
+- name: Check if CDI is ready
+  shell: "kubectl get deployment cdi-deployment -o jsonpath='{.status.availableReplicas}' -n {{ cdi_namespace }}"
+  retries: 5
+  delay: 3
+  register: isready
+  until: isready.stdout == "1"
+  when: cdi_import == "Y"
+  ignore_errors: yes
+
+- name: Render CDI secret yaml
+  template:
+    src: "{{ cdi_template_dir }}/secret.yml"
+    dest: /tmp/secret.yml
+  when: cdi_import == "Y"
+        and cdi_secret != ""
+
+- name: Create CDI secret
+  command: kubectl create -f /tmp/secret.yml -n {{ cdi_namespace }}
+  when: cdi_import == "Y"
+        and cdi_secret_key_id != ""
+        and cdi_secret_key != ""
+
+- name: Render CDI pvc-secret
+  template:
+    src: "{{ cdi_template_dir }}/pvc-secret.yml"
+    dest: /tmp/pvc-secret.yml
+  when: cdi_import == "Y"
+        and cdi_secret_key_id != ""
+        and cdi_secret_key != ""
+
+- name: Create CDI pvc-secret to trigger image download
+  command: kubectl create -f /tmp/pvc-secret.yml -n {{ cdi_namespace }}
+  when: cdi_import == "Y"
+        and cdi_secret_key_id != ""
+        and cdi_secret_key != ""
+
+- name: Render CDI pvc
+  template:
+    src: "{{ cdi_template_dir }}/pvc.yml"
+    dest: /tmp/pvc.yml
+  when: cdi_import == "Y"
+        and cdi_secret_key_id == ""
+        and cdi_secret_key == ""
+
+- name: Create CDI pvc to trigger image download
+  command: kubectl create -f /tmp/pvc.yml -n {{ cdi_namespace }}
+  when: cdi_import == "Y"
+        and cdi_secret_key_id == ""
+        and cdi_secret_key == ""
+
